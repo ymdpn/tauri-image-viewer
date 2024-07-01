@@ -3,10 +3,13 @@ mod image_processing;
 mod config;
 mod models;
 mod utils;
-
+use log::LevelFilter;
 use tauri::Manager;
 
 fn main() {
+    env_logger::Builder::from_default_env()
+        .filter_level(LevelFilter::Debug)
+        .init();
     tauri::Builder::default()
         .setup(|app| {
             let window = app.get_window("main").expect("Failed to get main window");

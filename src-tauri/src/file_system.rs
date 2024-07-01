@@ -5,10 +5,14 @@ use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::State;
 use sha2::{Sha256, Digest};
-use tauri::api::path::home_dir;
+use tauri::api::path::{home_dir};
 
 #[tauri::command]
 pub fn get_directory_contents(path: &str, state: State<'_, AppState>) -> Result<Vec<FileItem>, String> {
+    get_directory_contents_impl(path, state.inner())
+}
+
+fn get_directory_contents_impl(path: &str, state: &AppState) -> Result<Vec<FileItem>, String> {
     let mut items = Vec::new();
     let mut image_paths = state.image_paths.lock().unwrap();
     
@@ -30,7 +34,7 @@ pub fn get_directory_contents(path: &str, state: State<'_, AppState>) -> Result<
                     .as_secs();
                 let size = if is_dir { 0 } else { metadata.len() };
 
-                let id = if is_dir {
+                let _id = if is_dir {
                     name.clone()
                 } else {
                     let file_id = format!("{:x}", Sha256::digest(path.to_string_lossy().as_bytes()));
@@ -54,6 +58,10 @@ pub fn get_directory_contents(path: &str, state: State<'_, AppState>) -> Result<
 
 #[tauri::command]
 pub fn get_root_folders() -> Vec<FileItem> {
+    get_root_folders_impl()
+}
+
+fn get_root_folders_impl() -> Vec<FileItem> {
     let mut roots = Vec::new();
 
     if let Some(home) = home_dir() {
@@ -95,6 +103,10 @@ pub fn get_root_folders() -> Vec<FileItem> {
 
 #[tauri::command]
 pub fn get_full_image_list(path: &str, sort_by: SortBy, sort_order: SortOrder) -> Result<Vec<String>, String> {
+    get_full_image_list_impl(path, sort_by, sort_order)
+}
+
+fn get_full_image_list_impl(path: &str, sort_by: SortBy, sort_order: SortOrder) -> Result<Vec<String>, String> {
     let parent_dir = Path::new(path).parent().ok_or_else(|| "Invalid path".to_string())?;
     let mut images: Vec<(PathBuf, std::fs::Metadata)> = fs::read_dir(parent_dir)
         .map_err(|e| e.to_string())?
@@ -160,7 +172,7 @@ mod tests {
     fn test_get_directory_contents() {
         let temp_dir = create_test_directory();
         let state = AppState::new();
-        let contents = get_directory_contents(temp_dir.path().to_str().unwrap(), State::new(&state)).unwrap();
+        let contents = get_directory_contents_impl(temp_dir.path().to_str().unwrap(), &state).unwrap();
 
         assert_eq!(contents.len(), 5);
         assert!(contents.iter().any(|item| item.name == "dir1" && item.is_dir));
@@ -169,9 +181,17 @@ mod tests {
     }
 
     #[test]
+    fn test_get_root_folders() {
+        let roots = get_root_folders_impl();
+        assert!(!roots.is_empty());
+        assert!(roots.iter().any(|item| item.name == "Home"));
+        assert!(roots.iter().any(|item| item.name == "Root"));
+    }
+
+    #[test]
     fn test_get_full_image_list() {
         let temp_dir = create_test_directory();
-        let image_list = get_full_image_list(
+        let image_list = get_full_image_list_impl(
             temp_dir.path().join("image1.jpg").to_str().unwrap(),
             SortBy::Name,
             SortOrder::Asc

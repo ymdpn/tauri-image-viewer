@@ -26,6 +26,41 @@ pub async fn generate_thumbnail(path: String) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::PathBuf;
+    use std::sync::Once;
 
-    // Add unit tests for image processing functions
+    static INIT: Once = Once::new();
+
+    fn initialize() {
+        INIT.call_once(|| {
+        });
+    }
+
+    fn get_test_image_path(filename: &str) -> PathBuf {
+        let manifest_dir = std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR not set");
+        PathBuf::from(manifest_dir)
+            .join("tests")
+            .join("resources")
+            .join(filename)
+    }
+
+    #[tokio::test]
+    async fn test_generate_thumbnail_jpg() {
+        initialize();
+        let image_path = get_test_image_path("test_image.jpg");
+        let result = generate_thumbnail(image_path.to_str().unwrap().to_string()).await;
+        assert!(result.is_ok(), "Thumbnail generation failed for JPEG: {:?}", result.err());
+        let thumbnail = result.unwrap();
+        assert!(thumbnail.starts_with("data:image/webp;base64,"));
+    }
+
+    #[tokio::test]
+    async fn test_generate_thumbnail_png() {
+        initialize();
+        let image_path = get_test_image_path("test_image.png");
+        let result = generate_thumbnail(image_path.to_str().unwrap().to_string()).await;
+        assert!(result.is_ok(), "Thumbnail generation failed for PNG: {:?}", result.err());
+        let thumbnail = result.unwrap();
+        assert!(thumbnail.starts_with("data:image/webp;base64,"));
+    }
 }

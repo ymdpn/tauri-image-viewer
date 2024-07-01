@@ -20,12 +20,16 @@ pub fn get_cache_path(original_path: &str) -> PathBuf {
 }
 
 
+use log::debug;
+
 pub fn is_image(path: &Path) -> bool {
     let extensions = ["jpg", "jpeg", "png", "gif", "bmp", "webp"];
-    path.extension()
+    let result = path.extension()
         .and_then(|ext| ext.to_str())
         .map(|ext| extensions.contains(&ext.to_lowercase().as_str()))
-        .unwrap_or(false)
+        .unwrap_or(false);
+    debug!("is_image check for {:?}: {}", path, result);
+    result
 }
 
 #[cfg(test)]

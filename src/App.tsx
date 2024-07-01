@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { invoke } from '@tauri-apps/api/tauri';
 import { WebviewWindow, getCurrent } from '@tauri-apps/api/window';
 import { convertFileSrc } from '@tauri-apps/api/tauri';
@@ -45,6 +45,7 @@ function App() {
       initializeApp();
     }
   }, []);
+  
 
   useEffect(() => {
     if (isCloneWindow) {
@@ -64,23 +65,43 @@ function App() {
     }
   }, [currentPath, sortBy, sortOrder]);
 
-  const initializeApp = async () => {
+  const initializeApp = useCallback(async () => {
     try {
       const startupInfo: StartupInfo = await invoke('get_startup_info');
       setCurrentPath(startupInfo.folder);
+      
       if (startupInfo.file) {
         setSelectedImagePath(startupInfo.file);
-        const files = await loadDirectory(startupInfo.folder);
-        const index = files.findIndex(file => file.path === startupInfo.file);
+        
+        // ファイルリストとイメージリストを並行して取得
+        const [files, imageList] = await Promise.all([
+          invoke<FileItem[]>('get_directory_contents', { path: startupInfo.folder }),
+          invoke<string[]>('get_full_image_list', { 
+            path: startupInfo.file,
+            sortBy: sortBy.toLowerCase(),
+            sortOrder: sortOrder.toLowerCase()
+          })
+        ]);
+        
+        setFiles(sortFiles(files));
+        setFullImageList(imageList);
+        
+        const index = imageList.findIndex(path => path === startupInfo.file);
         if (index !== -1) {
           setExpandedImageIndex(index);
         }
+      } else {
+        loadDirectory(startupInfo.folder);
       }
     } catch (error) {
       console.error('Error getting startup info:', error);
       selectFolder();
     }
-  };
+  }, [sortBy, sortOrder]);
+
+  useEffect(() => {
+    initializeApp();
+  }, [initializeApp]);
 
   const selectFolder = async () => {
     try {
@@ -119,7 +140,7 @@ function App() {
     }
   };
 
-  const sortFiles = (files: FileItem[]) => {
+  const sortFiles = useCallback((files: FileItem[]) => {
     return [...files].sort((a, b) => {
       if (a.is_dir !== b.is_dir) {
         return a.is_dir ? -1 : 1;
@@ -140,7 +161,9 @@ function App() {
           return 0;
       }
     });
-  };
+  }, [sortBy, sortOrder]);
+
+  const memoizedSortedFiles = useMemo(() => sortFiles(files), [files, sortFiles]);
 
   const handleWheel = useCallback((e: WheelEvent) => {
     e.preventDefault();
@@ -249,7 +272,7 @@ function App() {
             </div>
             {currentPath ? (
               <ImageGrid
-                files={files}
+                files={memoizedSortedFiles}
                 onFileClick={handleFolderSelect}
                 onImageSelect={handleImageSelect}
                 expandedImageIndex={expandedImageIndex}
